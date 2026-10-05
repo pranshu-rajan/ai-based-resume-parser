@@ -1,12 +1,15 @@
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Body
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import json
 
 from app.models.schemas import (
     ParsedResume, JobDescription, CandidateEvaluation, BatchEvaluationResponse, RubricWeights
 )
+from app.db.session import get_db
+from app.db.repository import DataRepository
 from app.core.extractor import DocumentExtractor
 from app.core.llm import LLMOrchestrator
 from app.core.scorer import EvaluationEngine
@@ -27,17 +30,28 @@ class BatchSampleEvaluationRequest(BaseModel):
 @router.post("/evaluate", response_model=CandidateEvaluation)
 def evaluate_single_candidate(
     request: SingleEvaluationRequest,
-    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key")
+    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key"),
+    db: Session = Depends(get_db)
 ):
     """Evaluate a single parsed resume against the provided Job Description."""
     orchestrator = LLMOrchestrator(api_key=x_api_key)
     engine = EvaluationEngine(orchestrator)
-    return engine.evaluate_candidate(request.resume, request.job, request.rubric or RubricWeights())
+    eval_result = engine.evaluate_candidate(request.resume, request.job, request.rubric or RubricWeights())
+    
+    # Save to database
+    try:
+        job_record = DataRepository.save_job(db, request.job)
+        DataRepository.save_candidate_evaluation(db, eval_result, job_id=job_record.id)
+    except Exception as e:
+        print(f"[DB Warning] Could not persist evaluation: {e}")
+
+    return eval_result
 
 @router.post("/batch-evaluate-samples", response_model=BatchEvaluationResponse)
 def evaluate_samples_batch(
     request: BatchSampleEvaluationRequest,
-    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key")
+    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key"),
+    db: Session = Depends(get_db)
 ):
     """
     Evaluate multiple bundled sample resumes in batch against a Job Description.
@@ -57,12 +71,20 @@ def evaluate_samples_batch(
 
     evaluations: List[CandidateEvaluation] = []
     
+    job_record = None
+    try:
+        job_record = DataRepository.save_job(db, request.job)
+    except Exception:
+        pass
+
     for f in target_files:
         try:
             text = DocumentExtractor.extract_text_from_path(f)
             parsed = extract_resume_with_llm(text, f.name, orchestrator)
             evaluation = engine.evaluate_candidate(parsed, request.job, request.rubric or RubricWeights())
             evaluations.append(evaluation)
+            if job_record:
+                DataRepository.save_candidate_evaluation(db, evaluation, job_id=job_record.id)
         except Exception as e:
             print(f"[BatchEvaluate] Error evaluating {f.name}: {e}")
             continue
@@ -85,7 +107,8 @@ async def evaluate_uploaded_files_batch(
     files: List[UploadFile] = File(...),
     job_json: str = Form(...),
     rubric_json: Optional[str] = Form(None),
-    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key")
+    x_api_key: Optional[str] = Header(None, alias="X-Groq-API-Key"),
+    db: Session = Depends(get_db)
 ):
     """
     Evaluate a batch of user-uploaded files against the specified Job Description.
@@ -107,6 +130,12 @@ async def evaluate_uploaded_files_batch(
     engine = EvaluationEngine(orchestrator)
     evaluations: List[CandidateEvaluation] = []
 
+    job_record = None
+    try:
+        job_record = DataRepository.save_job(db, job)
+    except Exception:
+        pass
+
     for file in files:
         try:
             content_bytes = await file.read()
@@ -114,6 +143,8 @@ async def evaluate_uploaded_files_batch(
             parsed = extract_resume_with_llm(text, file.filename, orchestrator)
             evaluation = engine.evaluate_candidate(parsed, job, rubric)
             evaluations.append(evaluation)
+            if job_record:
+                DataRepository.save_candidate_evaluation(db, evaluation, job_id=job_record.id)
         except Exception as e:
             print(f"[BatchUpload] Error processing {file.filename}: {e}")
             continue

@@ -26,6 +26,8 @@ venv/
 ENV/
 env/
 .env
+*.db
+*.sqlite3
 
 # Node.js
 node_modules/
