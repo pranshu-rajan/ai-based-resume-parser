@@ -21,6 +21,17 @@ function getHeaders() {
   return headers;
 }
 
+export async function fetchServerHealth() {
+  try {
+    const rootUrl = API_BASE.replace(/\/api\/v1\/?$/, "");
+    const res = await fetch(`${rootUrl}/health`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function fetchJobTemplates() {
   const res = await fetch(`${API_BASE}/jobs/templates`);
   if (!res.ok) throw new Error("Failed to fetch job templates");

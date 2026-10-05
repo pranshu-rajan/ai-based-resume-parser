@@ -83,4 +83,8 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "groq_configured": bool(settings.GROQ_API_KEY),
+        "model": settings.DEFAULT_GROQ_MODEL
+    }

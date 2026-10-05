@@ -1,10 +1,18 @@
-import React, { useState } from "react";
-import { Key, X, CheckCircle, ShieldAlert, Sparkles } from "lucide-react";
-import { getCustomApiKey, setCustomApiKey } from "../services/api";
+import React, { useState, useEffect } from "react";
+import { Key, X, CheckCircle, ShieldAlert, Sparkles, Server } from "lucide-react";
+import { getCustomApiKey, setCustomApiKey, fetchServerHealth } from "../services/api";
 
 export default function ApiKeyModal({ isOpen, onClose }) {
   const [keyInput, setKeyInput] = useState(getCustomApiKey());
   const [savedStatus, setSavedStatus] = useState(false);
+  const [serverHealth, setServerHealth] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setKeyInput(getCustomApiKey());
+      fetchServerHealth().then(setServerHealth);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -69,9 +77,27 @@ export default function ApiKeyModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
-          Enter your <strong>Groq API Key</strong> to run live high-speed inference with <code>llama-3.3-70b-versatile</code> or <code>openai/gpt-oss-120b</code>. Your key is stored locally in your browser session.
-        </p>
+        {serverHealth && serverHealth.groq_configured ? (
+          <div style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start"
+          }}>
+            <Server size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: "0.8rem", color: "#166534", lineHeight: 1.45 }}>
+              <strong>Shared Local Server Key Active:</strong> The backend has a shared Groq API key configured using model <code>{serverHealth.model || "openai/gpt-oss-120b"}</code>. All users on this local instance automatically have live inference enabled without needing to enter a key.
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
+            Enter your <strong>Groq API Key</strong> to run live high-speed inference with <code>openai/gpt-oss-120b</code>. Your key is stored locally in your browser session.
+          </p>
+        )}
 
         <div style={{
           background: "var(--bg-subtle)",
@@ -84,7 +110,7 @@ export default function ApiKeyModal({ isOpen, onClose }) {
         }}>
           <Sparkles size={18} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-            <strong>Intelligent Demo Fallback:</strong> If left empty, the engine uses our high-fidelity built-in semantic evaluator so you can test all UI flows, batch comparisons, and STAR bullet polish with zero configuration!
+            <strong>Custom Key Override / Fallback:</strong> If you enter a key below, it will override the server key for your browser session. If cleared, requests seamlessly use the server's shared key or built-in demo evaluator.
           </div>
         </div>
 

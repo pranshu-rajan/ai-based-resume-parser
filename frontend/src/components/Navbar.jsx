@@ -1,9 +1,21 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Sparkles, Key, FileText, Users, ExternalLink, ShieldCheck } from "lucide-react";
-import { getCustomApiKey } from "../services/api";
+import { getCustomApiKey, fetchServerHealth } from "../services/api";
 
 export default function Navbar({ activeMode, setActiveMode, onOpenApiKeyModal }) {
-  const hasKey = Boolean(getCustomApiKey());
+  const hasCustomKey = Boolean(getCustomApiKey());
+  const [serverHealth, setServerHealth] = useState(null);
+
+  useEffect(() => {
+    fetchServerHealth().then(setServerHealth);
+  }, []);
+
+  const isConnected = hasCustomKey || (serverHealth && serverHealth.groq_configured);
+  const statusLabel = hasCustomKey
+    ? "Custom Groq Key: Active"
+    : serverHealth && serverHealth.groq_configured
+    ? `Groq (${serverHealth.model || "gpt-oss-120b"}): Shared`
+    : "Mode: Demo / Custom Key";
 
   return (
     <header style={{
@@ -110,13 +122,13 @@ export default function Navbar({ activeMode, setActiveMode, onOpenApiKeyModal })
             style={{ padding: "6px 12px", fontSize: "0.8rem" }}
             title="Configure Groq API Key or use built-in intelligent demo engine"
           >
-            <Key size={14} color={hasKey ? "var(--success)" : "var(--warning)"} />
-            <span>{hasKey ? "Groq API: Connected" : "Mode: Demo / Custom Key"}</span>
+            <Key size={14} color={isConnected ? "var(--success)" : "var(--warning)"} />
+            <span>{statusLabel}</span>
             <span style={{
               width: 8,
               height: 8,
               borderRadius: "50%",
-              background: hasKey ? "var(--success)" : "var(--warning)"
+              background: isConnected ? "var(--success)" : "var(--warning)"
             }} />
           </button>
 

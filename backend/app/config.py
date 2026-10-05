@@ -1,8 +1,16 @@
 import os
 from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+# Search for .env file in root directory and backend directory
+root_dir = Path(__file__).resolve().parent.parent.parent
+backend_dir = Path(__file__).resolve().parent.parent
+if (root_dir / ".env").exists():
+    load_dotenv(dotenv_path=root_dir / ".env", override=False)
+if (backend_dir / ".env").exists():
+    load_dotenv(dotenv_path=backend_dir / ".env", override=False)
+load_dotenv(find_dotenv(usecwd=True), override=False)
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Next-Gen AI Talent Intelligence Platform"
@@ -11,8 +19,8 @@ class Settings(BaseSettings):
     
     # LLM Settings
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    DEFAULT_GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    FALLBACK_GROQ_MODEL: str = "llama-3.1-8b-instant"
+    DEFAULT_GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    FALLBACK_GROQ_MODEL: str = "llama-3.3-70b-versatile"
     LEGACY_GROQ_MODEL: str = "openai/gpt-oss-120b"
     
     # Host & CORS
